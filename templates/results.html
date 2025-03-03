@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExploreX Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .scrollable-table { max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body class="bg-dark">
+    <div class="container py-5">
+        <h1 class="display-5 mb-4">DataExplorer Results</h1>
+        <div class="alert alert-info">
+            Dataset Type: <strong>{{ dataset_type }}</strong>
+        </div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Data Summary Dashboard -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#summary" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">Data Summary</h2>
+            </div>
+            <div id="summary" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">Overview of the dataset's key characteristics.</p>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item bg-dark">Rows: {{ summary.rows }}</li>
+                        <li class="list-group-item bg-dark">Columns: {{ summary.columns }}</li>
+                        <li class="list-group-item bg-dark">Missing Values: {{ summary.missing }}</li>
+                        <li class="list-group-item bg-dark">Numeric Columns: {{ summary.numeric }}</li>
+                        <li class="list-group-item bg-dark">Categorical Columns: {{ summary.categorical }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: Load Data -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step1" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">1. Load Data</h2>
+            </div>
+            <div id="step1" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[1] }}</p>
+                    <p>{{ step1.size_info }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Data Exploration -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step2" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">2. Data Exploration</h2>
+            </div>
+            <div id="step2" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[2] }}</p>
+                    <h3>Features</h3>
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for feature in step2.features %}
+                            <li class="list-group-item bg-dark">{{ feature }}: {{ step2.dtypes[feature] }}</li>
+                        {% endfor %}
+                    </ul>
+                    <h3>First 10 Rows</h3>
+                    <div class="table-responsive scrollable-table">{{ step2.first_10 | safe }}</div>
+                    <h3>Descriptive Statistics</h3>
+                    <div class="table-responsive scrollable-table">{{ step2.stats | safe }}</div>
+                    {% if step2.normality %}
+                        <h3>Normality Test (Shapiro-Wilk)</h3>
+                        <div class="table-responsive scrollable-table">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr><th>Column</th><th>p-value</th><th>Normal?</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for col, data in step2.normality.items() %}
+                                        <tr><td>{{ col }}</td><td>{{ data.p_value|round(4) }}</td><td>{{ data.normal }}</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                    {% if step2.correlation %}
+                        <h3>Correlation (Pearson)</h3>
+                        <div class="table-responsive scrollable-table">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr><th></th>{% for col in step2.correlation.keys() %}<th>{{ col }}</th>{% endfor %}</tr>
+                                </thead>
+                                <tbody>
+                                    {% for col1, corr_dict in step2.correlation.items() %}
+                                        <tr><td>{{ col1 }}</td>
+                                            {% for col2 in step2.correlation.keys() %}
+                                                <td>{{ (corr_dict[col2] if col2 in corr_dict else 1.0)|round(4) }}</td>
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                    {% if step2.chi_square %}
+                        <h3>Chi-Square Test</h3>
+                        <div class="table-responsive scrollable-table">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr><th>Pair</th><th>Chi2 Stat</th><th>p-value</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for pair, data in step2.chi_square.items() %}
+                                        <tr><td>{{ pair }}</td><td>{{ data.chi2|round(4) }}</td><td>{{ data.p_value|round(4) }}</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Dealing with Missing Values -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step3" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">3. Dealing with Missing Values</h2>
+            </div>
+            <div id="step3" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[3] }}</p>
+                    <div class="table-responsive scrollable-table">{{ step3.missing_values | safe }}</div>
+                    <form method="POST" action="/handle_missing" class="mt-3">
+                        <select name="method" class="form-select bg-dark text-light border-light w-25 mb-2">
+                            <option value="drop">Drop Rows</option>
+                            <option value="mean">Fill with Mean</option>
+                            <option value="median">Fill with Median</option>
+                            <option value="mode">Fill with Mode</option>
+                        </select>
+                        <button type="submit" class="btn btn-outline-light btn-hover">Handle Missing Values</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Outliers Handling -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step4" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">4. Outliers Handling</h2>
+            </div>
+            <div id="step4" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[4] }}</p>
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for col, count in step4.outliers_info.items() %}
+                            <li class="list-group-item bg-dark">{{ col }}: {{ count }} outliers</li>
+                        {% endfor %}
+                    </ul>
+                    <form method="POST" action="/remove_outliers" class="mt-3">
+                        <button type="submit" class="btn btn-outline-light btn-hover">Remove Outliers</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Normalization -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step5" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">5. Normalization</h2>
+            </div>
+            <div id="step5" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[5] }}</p>
+                    <div class="table-responsive scrollable-table">{{ step5.normalized_sample | safe }}</div>
+                    <form method="POST" action="/normalize" class="mt-3">
+                        <select name="method" class="form-select bg-dark text-light border-light w-25 mb-2">
+                            <option value="minmax">Min-Max</option>
+                            <option value="zscore">Z-Score</option>
+                            <option value="log">Log</option>
+                        </select>
+                        <button type="submit" class="btn btn-outline-light btn-hover">Normalize First Numeric Column</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 6: Feature Selection -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step6" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">6. Feature Selection</h2>
+            </div>
+            <div id="step6" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[6] }}</p>
+                    <h3>Mutual Information Top Features</h3>
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for feature in step6.mi_features %}
+                            <li class="list-group-item bg-dark">{{ feature }}</li>
+                        {% endfor %}
+                    </ul>
+                    <h3>Chi-Squared Top Features</h3>
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for feature in step6.chi2_features %}
+                            <li class="list-group-item bg-dark">{{ feature }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% if step6.feature_importance_path %}
+                        <h3>Feature Importance</h3>
+                        <img src="{{ url_for('static', filename=step6.feature_importance_path) }}" alt="Feature Importance" class="img-fluid rounded">
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 7: Graphic Displays -->
+        <div class="card bg-dark border-light mb-4">
+            <div class="card-header" data-bs-toggle="collapse" data-bs-target="#step7" style="cursor: pointer;">
+                <h2 class="card-title mb-0 step-title">7. Graphic Displays</h2>
+            </div>
+            <div id="step7" class="collapse show">
+                <div class="card-body">
+                    <p class="description-text">{{ step_descriptions[7] }}</p>
+                    {% if step7.boxplot %}
+                        <h3>Boxplot</h3>
+                        <img src="{{ url_for('static', filename='boxplot.png') }}" alt="Boxplot" class="img-fluid rounded">
+                    {% endif %}
+                    {% if step7.histogram %}
+                        <h3>Histogram</h3>
+                        <img src="{{ url_for('static', filename='histogram.png') }}" alt="Histogram" class="img-fluid rounded">
+                    {% endif %}
+                    {% if step7.wordcloud %}
+                        <h3>Word Cloud</h3>
+                        <img src="{{ url_for('static', filename='wordcloud.png') }}" alt="Word Cloud" class="img-fluid rounded">
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="/" class="btn btn-outline-light me-2 btn-hover">Back to Upload</a>
+            <a href="/download_report" class="btn btn-outline-light btn-hover">Download Report</a>
+        </div>
+        <footer class="mt-5 text-center">
+            <p>DataExplorer by [Seifeddine Biad]</p>
+        </footer>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
